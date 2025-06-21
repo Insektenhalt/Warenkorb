@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Angebot mit Doppelschieber und Funktionen</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  th, td { border: 1px solid #aaa; padding: 6px; text-align: center; }
+  input[type="text"], input[type="number"] {
+    width: 80px;
+    text-align: center;
+    font-size: 14px;
+  }
+  input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
+  .btn {
+    padding: 6px 12px;
+    margin-right: 6px;
+    background: #007BFF;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  .btn-delete { background: #dc3545; font-weight: bold; }
+  #lieferungEinbauContainer, #rabattContainer {
+    position: relative;
+    display: inline-block;
+    width: 100px;
+  }
+  #lieferungEinbauBetrag, #rabattBetrag {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  #lieferungEinbauBetrag {
+    text-align: center;
+    padding-right: 18px;
+  }
+  #rabattBetrag {
+    text-align: center;
+    padding-right: 18px;
+  }
+  #euroSymbol, #prozentSymbol {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #555;
+    font-weight: bold;
+  }
+  #rabattBetrag:focus {
+    outline: 2px solid #007BFF;
+  }
+  /* Zentrierung Zahl im Rabattfeld */
+  #rabattBetrag {
+    text-align: center;
+  }
+  /* Video / Kamera Bereich */
+  #videoContainer {
+    margin-bottom: 20px;
+    display: none;
+  }
+  #videoElement {
+    max-width: 100%;
+    border: 1px solid #ccc;
+  }
+  #canvasElement {
+    display: none;
+  }
+
+  /* Druck-Styles */
+  @media print {
+    body > *:not(#printArea) {
+      display: none !important;
+    }
+    #printArea {
+      display: block;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h2>Angebot erstellen</h2>
+
+<table>
+  <tr>
+    <th>Zimmer</th>
+    <th>Breite (cm)</th>
+    <th>Höhe (cm)</th>
+    <th>Doppelschieber</th>
+    <th>Verdopplung</th>
+    <th>Fibernetz</th>
+    <th>+</th>
+  </tr>
+  <tr>
+    <td><input type="text" id="name" placeholder="Zimmer" /></td>
+    <td><input type="number" id="breite" min="1" placeholder="Breite" /></td>
+    <td><input type="number" id="hoehe" min="1" placeholder="Höhe" /></td>
+    <td><input type="checkbox" id="doppelschieber" /></td>
+    <td><input type="checkbox" id="verdopplung" /></td>
+    <td><input type="checkbox" id="fibernetz" /></td>
+    <td><button class="btn" onclick="addToCart()">Hinzufügen</button></td>
+  </tr>
+</table>
+
+<h3>Warenkorb</h3>
+<table id="cart" aria-label="Warenkorb">
+  <thead>
+    <tr>
+      <th>Auswahl</th>
+      <th>Zimmer</th>
+      <th>Maße (BxH)</th>
+      <th>Doppelschieber</th>
+      <th>Hinweis</th>
+      <th>Verdopplung</th>
+      <th>Fibernetz</th>
+      <th>Preis (€)</th>
+      <th>Entfernen</th>
+    </tr>
+  </thead>
+  <tbody id="cart-body"></tbody>
+  <tfoot>
+    <tr>
+      <td colspan="7" style="text-align:right;">Zwischensumme (netto):</td>
+      <td id="subtotal">0,00 €</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td colspan="7" style="text-align:right;">Lieferung und Einbau:</td>
+      <td>
+        <div id="lieferungEinbauContainer">
+          <input type="number" id="lieferungEinbauBetrag" min="0" step="0.01" oninput="updateTotals()" placeholder="0,00" />
+          <span id="euroSymbol">€</span>
+        </div>
+      </td>
+      <td></td>
+    </tr>
+    <tr>
+      <td colspan="7" style="text-align:right;">Rabatt:</td>
+      <td>
+        <div id="rabattContainer">
+          <input type="number" id="rabattBetrag" min="0" max="100" step="0.1" oninput="updateTotals()" placeholder="0" />
+          <span id="prozentSymbol">%</span>
+        </div>
+      </td>
+      <td></td>
+    </tr>
+    <tr>
+      <td colspan="7" style="text-align:right; font-weight:bold;">Gesamtsumme (netto):</td>
+      <td id="total" style="font-weight:bold;">0,00 €</td>
+      <td></td>
+    </tr>
+  </tfoot>
+</table>
+
+<div style="margin-bottom:20px;">
+  <button class="btn" onclick="startCamera()">Foto machen</button>
+  <button class="btn" onclick="savePDF()">PDF speichern</button>
+  <button class="btn" onclick="sendWhatsApp()">WhatsApp senden</button>
+  <button class="btn" onclick="printOffer()">Drucken</button>
+</div>
+
+<!-- Video und Canvas für Foto -->
+<div id="videoContainer">
+  <video id="videoElement" autoplay></video><br />
+  <button class="btn" onclick="takePhoto()">Foto aufnehmen</button>
+  <button class="btn" onclick="stopCamera()">Kamera stoppen</button>
+</div>
+<canvas id="canvasElement"></canvas>
+
+<!-- Bereich zum Drucken -->
+<div id="printArea" style="display:none;">
+  <h2>Angebot</h2>
+  <table id="printCart" style="width:100%; border-collapse: collapse;" border="1">
+    <thead>
+      <tr>
+        <th>Zimmer</th>
+        <th>Maße (BxH)</th>
+        <th>Doppelschieber</th>
+        <th>Hinweis</th>
+        <th>Verdopplung</th>
+        <th>Fibernetz</th>
+        <th>Preis (€)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <p style="text-align:right; font-weight:bold;" id="printSubtotal"></p>
+  <p style="text-align:right; font-weight:bold;" id="printLieferungEinbau"></p>
+  <p style="text-align:right; font-weight:bold;" id="printRabatt"></p>
+  <p style="text-align:right; font-weight:bold;" id="printGesamt"></p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script>
+  // Preise
+  const PREIS_UNTER_140 = 0.19;
+  const PREIS_AB_140 = 0.20;
+  const ZUSCHLAG_DOPPELSCHIEBER = 10.00;
+  const ZUSCHLAG_VERDOPPLUNG = 12.00;
+  const ZUSCHLAG_FIBERNETZ = 20.00;
+
+  let artikelListe = [];
+
+  // Kamera Variablen
+  let videoStream = null;
+
+  function addToCart() {
+    const name = document.getElementById('name').value.trim();
+    const breite = parseFloat(document.getElementById('breite').value);
+    const hoehe = parseFloat(document.getElementById('hoehe').value);
+    const doppelschieber = document.getElementById('doppelschieber').checked;
+    const verdopplung = document.getElementById('verdopplung').checked;
+    const fibernetz = document.getElementById('fibernetz').checked;
+
+    if (!name) { alert("Bitte Zimmername eingeben."); return; }
+    if (isNaN(breite) || breite <= 0) { alert("Bitte gültige Breite eingeben."); return; }
+    if (isNaN(hoehe) || hoehe <= 0) { alert("Bitte gültige Höhe eingeben."); return; }
+
+    const umfang = 2 * (breite + hoehe);
+    const preisProCm = breite >= 140 ? PREIS_AB_140 : PREIS_UNTER_140;
+    let preis = umfang * preisProCm;
+
+    if (doppelschieber) preis += ZUSCHLAG_DOPPELSCHIEBER;
+    if (verdopplung) preis += ZUSCHLAG_VERDOPPLUNG;
+    if (fibernetz) preis += ZUSCHLAG_FIBERNETZ;
+
+    const artikel = {
+      id: Date.now() + Math.random(),
+      selected: true,
+      name,
+      breite,
+      hoehe,
+      doppelschieber,
+      verdopplung,
+      fibernetz,
+      preis
+    };
+
+    artikelListe.push(artikel);
+    renderCart();
+    updateTotals();
+
+    // Formular zurücksetzen
+    document.getElementById('name').value = "";
+    document.getElementById('breite').value = "";
+    document.getElementById('hoehe').value = "";
+    document.getElementById('doppelschieber').checked = false;
+    document.getElementById('verdopplung').checked = false;
+    document.getElementById('fibernetz').checked = false;
+  }
+
+  function renderCart() {
+    const tbody = document.getElementById('cart-body');
+    tbody.innerHTML = "";
+
+    artikelListe.forEach((artikel, index) => {
+      const tr = document.createElement('tr');
+
+      // Auswahl Checkbox
+      const tdSelect = document.createElement('td');
+      const checkbox = document.createElement('input');
+      checkbox.type = "checkbox";
+      checkbox.checked = artikel.selected;
+      checkbox.onchange = () => {
+        artikel.selected = checkbox.checked;
+        updateTotals();
+      };
+      tdSelect.appendChild(checkbox);
+      tr.appendChild(tdSelect);
+
+      // Zimmername
+      const tdName = document.createElement('td');
+      tdName.textContent = artikel.name;
+      tr.appendChild(tdName);
+
+      // Maße
+      const tdMass = document.createElement('td');
+      tdMass.textContent = `${artikel.breite} x ${artikel.hoehe} cm`;
+      tr.appendChild(tdMass);
+
+      // Doppelschieber (automatisch ab 140cm)
+      const tdDoppelschieber = document.createElement('td');
+      tdDoppelschieber.textContent = (artikel.breite >= 140) ? "Doppelschieber" : "";
+      tr.appendChild(tdDoppelschieber);
+
+      // Hinweis nur wenn Haken gesetzt
+      const tdHinweis = document.createElement('td');
+      tdHinweis.style.color = "";
+      if (artikel.doppelschieber) {
+        tdHinweis.textContent = "mit extra Doppelschieber +10€";
+      }
+      tr.appendChild(tdHinweis);
+
+      // Verdopplung
+      const tdVerdopplung = document.createElement('td');
+      tdVerdopplung.textContent = artikel.verdopplung ? "Ja" : "";
+      tr.appendChild(tdVerdopplung);
+
+      // Fibernetz
+      const tdFibernetz = document.createElement('td');
+      tdFibernetz.textContent = artikel.fibernetz ? "Ja" : "";
+      tr.appendChild(tdFibernetz);
+
+      // Preis
+      const tdPreis = document.createElement('td');
+      tdPreis.textContent = artikel.preis.toFixed(2).replace('.', ',') + " €";
+      tr.appendChild(tdPreis);
+
+      // Entfernen
+      const tdRemove = document.createElement('td');
+      const btnRemove = document.createElement('button');
+      btnRemove.textContent = "X";
+      btnRemove.className = "btn btn-delete";
+      btnRemove.onclick = () => {
+        artikelListe.splice(index, 1);
+        renderCart();
+        updateTotals();
+      };
+      tdRemove.appendChild(btnRemove);
+      tr.appendChild(tdRemove);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function updateTotals() {
+    const lieferung = parseFloat(document.getElementById('lieferungEinbauBetrag').value) || 0;
+    const rabatt = parseFloat(document.getElementById('rabattBetrag').value) || 0;
+
+    let nettoSumme = 0;
+    artikelListe.forEach(a => {
+      if (a.selected) {
+        nettoSumme += a.preis;
+      }
+    });
+
+    const rabattBetrag = (nettoSumme * rabatt / 100);
+    const nettoGesamt = nettoSumme + lieferung - rabattBetrag;
+
+    document.getElementById('subtotal').textContent = nettoSumme.toFixed(2).replace('.', ',') + " €";
+    document.getElementById('total').textContent = nettoGesamt.toFixed(2).replace('.', ',') + " €";
+  }
+
+  // Kamera Funktionen
+  async function startCamera() {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        document.getElementById('videoElement').srcObject = videoStream;
+        document.getElementById('videoContainer').style.display = "block";
+      } catch (e) {
+        alert("Kamera konnte nicht gestartet werden: " + e.message);
+      }
+    } else {
+      alert("Kamera nicht unterstützt.");
+    }
+  }
+
+  function takePhoto() {
+    const video = document.getElementById('videoElement');
+    const canvas = document.getElementById('canvasElement');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+    const imgData = canvas.toDataURL('image/png');
+    downloadImage(imgData, 'foto.png');
+  }
+
+  function stopCamera() {
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+      videoStream = null;
+    }
+    document.getElementById('videoContainer').style.display = "none";
+  }
+
+  function downloadImage(dataUrl, filename) {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  // PDF speichern mit jsPDF und autotable
+  function savePDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    const rows = artikelListe.map(a => [
+      a.name,
+      `${a.breite} x ${a.hoehe} cm`,
+      (a.breite >= 140) ? "Doppelschieber" : "",
+      a.doppelschieber ? "mit extra Doppelschieber +10€" : "",
+      a.verdopplung ? "Ja" : "",
+      a.fibernetz ? "Ja" : "",
+      a.preis.toFixed(2).replace('.', ',') + " €"
+    ]);
+
+    doc.text("Angebot", 14, 20);
+    doc.autoTable({
+      startY: 25,
+      head: [["Zimmer", "Maße", "Doppelschieber", "Hinweis", "Verdopplung", "Fibernetz", "Preis"]],
+      body: rows
+    });
+
+    let yAfterTable = doc.lastAutoTable.finalY + 10;
+
+    const nettoSumme = artikelListe.reduce((acc, a) => acc + (a.selected ? a.preis : 0), 0);
+    const lieferung = parseFloat(document.getElementById('lieferungEinbauBetrag').value) || 0;
+    const rabatt = parseFloat(document.getElementById('rabattBetrag').value) || 0;
+    const rabattBetrag = (nettoSumme * rabatt / 100);
+    const nettoGesamt = nettoSumme + lieferung - rabattBetrag;
+
+    doc.text(`Zwischensumme (netto): ${nettoSumme.toFixed(2).replace('.', ',')} €`, 14, yAfterTable);
+    doc.text(`Lieferung und Einbau: ${lieferung.toFixed(2).replace('.', ',')} €`, 14, yAfterTable + 7);
+    doc.text(`Rabatt: ${rabatt.toFixed(2).replace('.', ',')} %`, 14, yAfterTable + 14);
+    doc.text(`Gesamtsumme (netto): ${nettoGesamt.toFixed(2).replace('.', ',')} €`, 14, yAfterTable + 21);
+
+    doc.save("angebot.pdf");
+  }
+
+  // WhatsApp senden
+  function sendWhatsApp() {
+    let message = "Angebot:\n";
+    artikelListe.forEach(a => {
+      if (a.selected) {
+        message += `${a.name} - ${a.breite}x${a.hoehe} cm - ` +
+          ((a.breite >= 140) ? "Doppelschieber; " : "") +
+          (a.doppelschieber ? "mit extra Doppelschieber +10€; " : "") +
+          (a.verdopplung ? "Verdopplung; " : "") +
+          (a.fibernetz ? "Fibernetz; " : "") +
+          `Preis: ${a.preis.toFixed(2).replace('.', ',')} €\n`;
+      }
+    });
+
+    const lieferung = parseFloat(document.getElementById('lieferungEinbauBetrag').value) || 0;
+    const rabatt = parseFloat(document.getElementById('rabattBetrag').value) || 0;
+    const nettoSumme = artikelListe.reduce((acc, a) => acc + (a.selected ? a.preis : 0), 0);
+    const rabattBetrag = (nettoSumme * rabatt / 100);
+    const nettoGesamt = nettoSumme + lieferung - rabattBetrag;
+
+    message += `\nLieferung und Einbau: ${lieferung.toFixed(2).replace('.', ',')} €`;
+    message += `\nRabatt: ${rabatt.toFixed(2).replace('.', ',')} %`;
+    message += `\nGesamtsumme: ${nettoGesamt.toFixed(2).replace('.', ',')} €`;
+
+    const url = "https://wa.me/?text=" + encodeURIComponent(message);
+    window.open(url, "_blank");
+  }
+
+  // Drucken Funktion
+  function printOffer() {
+    const printArea = document.getElementById('printArea');
+    const tbody = printArea.querySelector('tbody');
+    tbody.innerHTML = "";
+
+    artikelListe.forEach(a => {
+      const tr = document.createElement('tr');
+
+      const tdName = document.createElement('td');
+      tdName.textContent = a.name;
+      tr.appendChild(tdName);
+
+      const tdMass = document.createElement('td');
+      tdMass.textContent = `${a.breite} x ${a.hoehe} cm`;
+      tr.appendChild(tdMass);
+
+      const tdDoppelschieber = document.createElement('td');
+      tdDoppelschieber.textContent = (a.breite >= 140) ? "Doppelschieber" : "";
+      tr.appendChild(tdDoppelschieber);
+
+      const tdHinweis = document.createElement('td');
+      if (a.doppelschieber) tdHinweis.textContent = "mit extra Doppelschieber +10€";
+      tr.appendChild(tdHinweis);
+
+      const tdVerdopplung = document.createElement('td');
+      tdVerdopplung.textContent = a.verdopplung ? "Ja" : "";
+      tr.appendChild(tdVerdopplung);
+
+      const tdFibernetz = document.createElement('td');
+      tdFibernetz.textContent = a.fibernetz ? "Ja" : "";
+      tr.appendChild(tdFibernetz);
+
+      const tdPreis = document.createElement('td');
+      tdPreis.textContent = a.preis.toFixed(2).replace('.', ',') + " €";
+      tr.appendChild(tdPreis);
+
+      tbody.appendChild(tr);
+    });
+
+    // Zwischensumme und Gesamtsummen übernehmen
+    const nettoSumme = artikelListe.reduce((acc, a) => acc + (a.selected ? a.preis : 0), 0);
+    const lieferung = parseFloat(document.getElementById('lieferungEinbauBetrag').value) || 0;
+    const rabatt = parseFloat(document.getElementById('rabattBetrag').value) || 0;
+    const rabattBetrag = (nettoSumme * rabatt / 100);
+    const nettoGesamt = nettoSumme + lieferung - rabattBetrag;
+
+    document.getElementById('printSubtotal').textContent = `Zwischensumme (netto): ${nettoSumme.toFixed(2).replace('.', ',')} €`;
+    document.getElementById('printLieferungEinbau').textContent = `Lieferung und Einbau: ${lieferung.toFixed(2).replace('.', ',')} €`;
+    document.getElementById('printRabatt').textContent = `Rabatt: ${rabatt.toFixed(2).replace('.', ',')} %`;
+    document.getElementById('printGesamt').textContent = `Gesamtsumme (netto): ${nettoGesamt.toFixed(2).replace('.', ',')} €`;
+
+    // Sichtbar machen und Drucken starten
+    printArea.style.display = "block";
+    window.print();
+    printArea.style.display = "none";
+  }
+
+  // Initiale Render und Update
+  renderCart();
+  updateTotals();
+
+</script>
+
+</body>
+</html>
